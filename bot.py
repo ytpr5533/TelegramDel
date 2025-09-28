@@ -12,30 +12,33 @@ TOKEN = "8344957724:AAGX-cRM_-piq3u55UtMPTqOYZYFJC55q1w"
 ADMIN_CHAT_ID = 5286630701  # Replace with your Telegram ID
 
 
+
 # ◼️ IMAGE FETCHER
 async def get_anime_image(rating="safe") -> bytes:
     url = f"https://caution.a0001.net/h3ntai.php?rating={rating}"
     async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
+        async with session.get(url, allow_redirects=True) as response:
             if response.status != 200:
-                raise Exception(f"Failed to fetch image (status {response.status})")
-            return await response.read()   # ⬅️ return raw image bytes
+                raise Exception(f"Failed to fetch (status {response.status})")
+
+            ctype = response.headers.get("Content-Type", "")
+            if not ctype.startswith("image/"):
+                raise Exception(f"Got non-image response (Content-Type={ctype})")
+
+            return await response.read()
 
 
 # ◼️ COMMAND HANDLERS
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "👋 Hello! I’m alive and ready.\n\n"
-        "➡️ Use /help to see what I can do."
-    )
+    await update.message.reply_text("👋 Hello! I’m alive and ready.\n\n➡️ Use /help to see what I can do.")
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "📖 Commands you can use:\n\n"
+        "📖 Commands:\n\n"
         "/start – Welcome message\n"
         "/help – Show this help menu\n"
         "/image <rating> – Get an anime image\n"
-        "\nAvailable ratings: safe, questionable, explicit\n"
+        "Available ratings: safe, questionable, explicit\n"
         "Example: /image safe"
     )
 
@@ -46,32 +49,25 @@ async def send_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         img_data = await get_anime_image(rating)
-        await update.message.reply_photo(
-            photo=img_data,
-            caption=f"Here’s a {rating} image!"
-        )
+        await update.message.reply_photo(photo=img_data, caption=f"Here’s a {rating} image!")
     except Exception as e:
         await update.message.reply_text(f"⚠️ Could not fetch image: {e}")
 
 
-# Unknown commands fallback
+# Unknown commands
 async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "❓ Sorry, I don’t recognize that command.\n"
-        "➡️ Try /help to see what I can do."
-    )
+    await update.message.reply_text("❓ Unknown command. Try /help")
 
 
-# ◼️ STARTUP HOOK
+# ◼️ STARTUP
 async def on_startup(app: Application):
     print("✅ Bot is live!")
     try:
-        await app.bot.send_message(chat_id=ADMIN_CHAT_ID, text="🤖 Bot is live and ready!")
+        await app.bot.send_message(chat_id=ADMIN_CHAT_ID, text="🤖 Bot is live!")
     except Exception as e:
-        print(f"Could not send startup message: {e}")
+        print(f"Startup message failed: {e}")
 
 
-# ◼️ MAIN BOT
 def main():
     app = (
         Application.builder()
