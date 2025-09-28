@@ -8,21 +8,21 @@ from telegram.ext import (
     ContextTypes
 )
 
-# Your bot token from BotFather
-TOKEN = "8344957724:AAGX-cRM_-piq3u55UtMPTqOYZYFJC55q1w"
-ADMIN_CHAT_ID = 5286630701   # Replace with your Telegram user ID
+TOKEN = "YOUR_BOT_TOKEN"
+ADMIN_CHAT_ID = 5286630701  # Replace with your Telegram ID
 
 
 # ◼️ IMAGE FETCHER
-async def get_anime_image(rating="safe") -> str:
+async def get_anime_image(rating="safe") -> bytes:
     url = f"https://caution.a0001.net/h3ntai.php?rating={rating}"
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
-            return (await response.text()).strip()
+            if response.status != 200:
+                raise Exception(f"Failed to fetch image (status {response.status})")
+            return await response.read()   # ⬅️ return raw image bytes
 
 
 # ◼️ COMMAND HANDLERS
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "👋 Hello! I’m alive and ready.\n\n"
@@ -44,11 +44,15 @@ async def send_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.args:
         rating = context.args[0].lower()
 
-    img_url = await get_anime_image(rating)
-    await update.message.reply_photo(
-        photo=img_url,
-        caption=f"Here’s a {rating} image!"
-    )
+    try:
+        img_data = await get_anime_image(rating)
+        await update.message.reply_photo(
+            photo=img_data,
+            caption=f"Here’s a {rating} image!"
+        )
+    except Exception as e:
+        await update.message.reply_text(f"⚠️ Could not fetch image: {e}")
+
 
 # Unknown commands fallback
 async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -76,12 +80,9 @@ def main():
         .build()
     )
 
-    # Commands
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("image", send_image))
-
-    # Handle unknown commands nicely
     app.add_handler(MessageHandler(filters.COMMAND, unknown_command))
 
     app.run_polling(allowed_updates=["message"])
