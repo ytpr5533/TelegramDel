@@ -8,7 +8,7 @@ from telegram.ext import (
     ContextTypes
 )
 
-TOKEN = "YOUR_BOT_TOKEN"
+TOKEN = "8344957724:AAGX-cRM_-piq3u55UtMPTqOYZYFJC55q1w"
 ADMIN_CHAT_ID = 5286630701  # Replace with your Telegram ID
 
 
