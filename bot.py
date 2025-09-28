@@ -12,26 +12,12 @@ TOKEN = "8344957724:AAGX-cRM_-piq3u55UtMPTqOYZYFJC55q1w"
 ADMIN_CHAT_ID = 5286630701  # Replace with your Telegram ID
 
 
-
-# ◼️ IMAGE FETCHER
-async def get_anime_image(rating="safe") -> bytes:
+# ◼️ IMAGE URL FETCHER (returns raw text)
+async def get_anime_image_url(rating="safe") -> str:
     url = f"https://caution.a0001.net/h3ntai.php?rating={rating}"
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as resp:
-            if resp.status != 200:
-                raise Exception(f"API error {resp.status}")
-            data = await resp.json()
-
-            # Extract image URL from JSON
-            img_url = data.get("image", {}).get("url")
-            if not img_url:
-                raise Exception("No image URL found in response")
-
-            # Fetch the actual image bytes
-            async with session.get(img_url) as img_resp:
-                if img_resp.status != 200:
-                    raise Exception(f"Failed to fetch image {img_resp.status}")
-                return await img_resp.read()
+            return await resp.text()   # return raw text instead of parsing JSON
 
 
 # ◼️ COMMAND HANDLERS
@@ -43,9 +29,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📖 Commands:\n\n"
         "/start – Welcome message\n"
         "/help – Show this help menu\n"
-        "/image <rating> – Get an anime image\n"
+        "/image <rating> – Get an anime image link\n"
         "Available ratings: safe, suggestive, borderline, explicit\n"
-        "Example: /image safe"
+        "Example: /image explicit"
     )
 
 async def send_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -54,13 +40,13 @@ async def send_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
         rating = context.args[0].lower()
 
     try:
-        img_data = await get_anime_image(rating)
-        await update.message.reply_photo(photo=img_data, caption=f"Here’s a {rating} image!")
+        img_url = await get_anime_image_url(rating)
+        await update.message.reply_text(f"🔗 Here’s a {rating} image URL:\n{img_url}")
     except Exception as e:
-        await update.message.reply_text(f"⚠️ Could not fetch image: {e}")
+        await update.message.reply_text(f"⚠️ Could not fetch image URL: {e}")
 
 
-# Fallback for unknown commands
+# Unknown commands
 async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("❓ Unknown command. Try /help")
 
