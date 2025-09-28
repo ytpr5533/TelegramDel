@@ -17,15 +17,21 @@ ADMIN_CHAT_ID = 5286630701  # Replace with your Telegram ID
 async def get_anime_image(rating="safe") -> bytes:
     url = f"https://caution.a0001.net/h3ntai.php?rating={rating}"
     async with aiohttp.ClientSession() as session:
-        async with session.get(url, allow_redirects=True) as response:
-            if response.status != 200:
-                raise Exception(f"Failed to fetch (status {response.status})")
+        async with session.get(url) as resp:
+            if resp.status != 200:
+                raise Exception(f"API error {resp.status}")
+            data = await resp.json()
 
-            ctype = response.headers.get("Content-Type", "")
-            if not ctype.startswith("image/"):
-                raise Exception(f"Got non-image response (Content-Type={ctype})")
+            # Extract image URL from JSON
+            img_url = data.get("image", {}).get("url")
+            if not img_url:
+                raise Exception("No image URL found in response")
 
-            return await response.read()
+            # Fetch the actual image bytes
+            async with session.get(img_url) as img_resp:
+                if img_resp.status != 200:
+                    raise Exception(f"Failed to fetch image {img_resp.status}")
+                return await img_resp.read()
 
 
 # ◼️ COMMAND HANDLERS
@@ -38,7 +44,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/start – Welcome message\n"
         "/help – Show this help menu\n"
         "/image <rating> – Get an anime image\n"
-        "Available ratings: safe, questionable, explicit\n"
+        "Available ratings: safe, suggestive, borderline, explicit\n"
         "Example: /image safe"
     )
 
@@ -54,7 +60,7 @@ async def send_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"⚠️ Could not fetch image: {e}")
 
 
-# Unknown commands
+# Fallback for unknown commands
 async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("❓ Unknown command. Try /help")
 
@@ -63,7 +69,7 @@ async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def on_startup(app: Application):
     print("✅ Bot is live!")
     try:
-        await app.bot.send_message(chat_id=ADMIN_CHAT_ID, text="🤖 Bot is live!")
+        await app.bot.send_message(chat_id=ADMIN_CHAT_ID, text="🤖 Bot is live and ready!")
     except Exception as e:
         print(f"Startup message failed: {e}")
 
