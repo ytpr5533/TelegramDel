@@ -43,7 +43,7 @@ async def handle_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         # Forward message to group with hidden tag
         sent_msg = await context.bot.send_message(
             chat_id=GROUP_CHAT_ID,
-            text=f"{text}\n\n[REQ_BY:{user_id}]"
+            text=f"{text}"
         )
 
         # Save mapping
