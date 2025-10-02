@@ -1,3 +1,13 @@
+import sys
+import types
+
+# Dummy imghdr module (only for Telethon)
+imghdr = types.ModuleType("imghdr")
+imghdr.what = lambda *a, **k: None
+sys.modules["imghdr"] = imghdr
+
+from telethon import TelegramClient, events, types
+
 import asyncio
 import logging
 from telethon import TelegramClient, events
