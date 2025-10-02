@@ -1,80 +1,70 @@
-import aiohttp
+# from telegram import Update
+# from telegram.ext import Application,CommandHandler,MessageHandler,filters,ContextTypes
+
+# TOKEN = ""
+# ADMIN_CHAT_ID = 5286630701  # Replace with your Telegram ID
+
+
 from telegram import Update
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    MessageHandler,
-    filters,
-    ContextTypes
-)
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-TOKEN = "8344957724:AAGX-cRM_-piq3u55UtMPTqOYZYFJC55q1w"
-ADMIN_CHAT_ID = 5286630701  # Replace with your Telegram ID
+# ==== CONFIG ====
+BOT_A_ID = 8383101634        # Replace with Bot A's user ID
+GROUP_CHAT_ID = -2391296436  # Replace with your group's chat ID
+BOT_B_TOKEN = "8344957724:AAGX-cRM_-piq3u55UtMPTqOYZYFJC55q1w"  # Replace with Bot B token from BotFather
 
+# Store mapping: user_id -> last message id in group
+user_requests = {}
 
-# ◼️ IMAGE URL FETCHER (returns raw text)
-async def get_anime_image_url(rating="safe") -> str:
-    url = f"https://caution.a0001.net/h3ntai.php?rating={rating}"
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as resp:
-            return await resp.text()   # return raw text instead of parsing JSON
+# ==== HANDLERS ====
 
-
-# ◼️ COMMAND HANDLERS
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 Hello! I’m alive and ready.\n\n➡️ Use /help to see what I can do.")
+    await update.message.reply_text("Hey! Send me a command and I’ll get the answer for you.")
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "📖 Commands:\n\n"
-        "/start – Welcome message\n"
-        "/help – Show this help menu\n"
-        "/image <rating> – Get an anime image link\n"
-        "Available ratings: safe, suggestive, borderline, explicit\n"
-        "Example: /image explicit"
+async def handle_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    text = update.message.text
+
+    # Send to group (with a tag so we can match later)
+    sent_msg = await context.bot.send_message(
+        chat_id=GROUP_CHAT_ID,
+        text=f"{text}\n\n[REQ_BY:{user_id}]"
     )
 
-async def send_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    rating = "safe"
-    if context.args:
-        rating = context.args[0].lower()
+    # Map this group message to the user
+    user_requests[sent_msg.message_id] = user_id
 
-    try:
-        img_url = await get_anime_image_url(rating)
-        await update.message.reply_text(f"🔗 Here’s a {rating} image URL:\n{img_url}")
-    except Exception as e:
-        await update.message.reply_text(f"⚠️ Could not fetch image URL: {e}")
+    await update.message.reply_text("Got it. Fetching response...")
 
+async def handle_group_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Only watch for Bot A replies
+    if update.message.from_user and update.message.from_user.id == BOT_A_ID:
+        reply_text = update.message.text
 
-# Unknown commands
-async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("❓ Unknown command. Try /help")
+        # Try to find tagged request
+        if update.message.reply_to_message and update.message.reply_to_message.message_id in user_requests:
+            user_id = user_requests[update.message.reply_to_message.message_id]
 
+            # Send Bot A's reply back to the user
+            await context.bot.send_message(chat_id=user_id, text=reply_text)
 
-# ◼️ STARTUP
-async def on_startup(app: Application):
-    print("✅ Bot is live!")
-    try:
-        await app.bot.send_message(chat_id=ADMIN_CHAT_ID, text="🤖 Bot is live and ready!")
-    except Exception as e:
-        print(f"Startup message failed: {e}")
+            # Cleanup mapping
+            del user_requests[update.message.reply_to_message.message_id]
 
-
+# ==== MAIN ====
 def main():
-    app = (
-        Application.builder()
-        .token(TOKEN)
-        .post_init(on_startup)
-        .build()
-    )
+    app = Application.builder().token(BOT_B_TOKEN).build()
 
+    # Handlers for private chat with users
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler("image", send_image))
-    app.add_handler(MessageHandler(filters.COMMAND, unknown_command))
+    app.add_handler(MessageHandler(filters.ChatType.PRIVATE & filters.TEXT, handle_user_command))
 
-    app.run_polling(allowed_updates=["message"])
+    # Handler for group messages
+    app.add_handler(MessageHandler(filters.ChatType.GROUPS & filters.TEXT, handle_group_message))
 
+    print("Bot B is running...")
+    app.run_polling()
 
 if __name__ == "__main__":
     main()
+
