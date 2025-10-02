@@ -5,15 +5,10 @@ from telegram.ext import (
     ContextTypes, filters
 )
 
-async def debug(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    print(update)
-
-app.add_handler(MessageHandler(filters.ALL, debug))
-
 
 # ==== CONFIG ====
 BOT_A_ID = 8383101634        # Replace with Bot A's user ID
-GROUP_CHAT_ID = -2391296436  # Replace with your group's chat ID
+GROUP_CHAT_ID = -1002391296436  # Replace with your group's chat ID
 BOT_B_TOKEN = "7589787815:AAEmy9yQzBKKaMMRxmV3K2CnZST1jTF4IKs"  # Replace with Bot B token from BotFather
 
 
