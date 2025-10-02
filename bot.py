@@ -1,110 +1,79 @@
+from telethon import TelegramClient, events, types
 import logging
-from telegram import Update
-from telegram.ext import (
-    Application, CommandHandler, MessageHandler,
-    ContextTypes, filters
-)
+import asyncio
 
+# ================= CONFIG =================
+API_ID = 28980184                 # Your Telegram API ID
+API_HASH = "087803ce7bd17d500ea9e223db2af018"       # Your Telegram API Hash
+SESSION_NAME = "userbot_session" # Session file name
+GROUP_USERNAME = "t.me/informationtool"  # e.g., t.me/YourGroupUsername
+BOT_A_ID = 8200107278             # Bot A's user ID
 
-# ==== CONFIG ====
-BOT_A_ID = 8383101634        # Replace with Bot A's user ID
-GROUP_CHAT_ID = -1002391296436  # Replace with your group's chat ID
-BOT_B_TOKEN = "7589787815:AAEmy9yQzBKKaMMRxmV3K2CnZST1jTF4IKs"  # Replace with Bot B token from BotFather
-
-
-
-# Track mapping: group_message_id -> user_id
-user_requests = {}
-
-# ===================== LOGGING =====================
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO
-)
+# ================= LOGGING =================
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ===================== HANDLERS =====================
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Start command for private chat users."""
+# ================= TELETHON CLIENT =================
+client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
+
+# Store mapping: message_id in group -> user_id
+user_requests = {}
+
+# ================= HANDLERS =================
+@client.on(events.NewMessage)
+async def handle_user_dm(event):
+    """Handle commands sent by users to userbot."""
     try:
-        await update.message.reply_text(
-            "Hi! Send me a command (like /price BTC) and I’ll fetch the result for you."
-        )
+        if not event.is_private:
+            return  # only process private messages
+
+        user_id = event.sender_id
+        text = event.raw_text
+
+        # 1️⃣ Check if user is in the group
+        try:
+            member = await client.get_participant(GROUP_USERNAME, user_id)
+        except Exception:
+            # user not in group
+            await event.reply(f"❌ You must join our group first:\nhttps://t.me/{GROUP_USERNAME}")
+            return
+
+        # 2️⃣ Forward command to Bot A in the group
+        group_msg = await client.send_message(GROUP_USERNAME, f"{text}")
+        user_requests[group_msg.id] = user_id
+        await event.reply("✅ Request sent! Waiting for Bot A response...")
+
     except Exception as e:
-        logger.error(f"Error in /start: {e}")
+        logger.error(f"Error handling user DM: {e}")
+        await event.reply("⚠️ Something went wrong.")
 
-
-async def handle_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle user commands in private chat."""
+@client.on(events.NewMessage)
+async def handle_group_messages(event):
+    """Catch replies from Bot A in the group."""
     try:
-        user_id = update.effective_user.id
-        text = update.message.text
+        if event.chat.username != GROUP_USERNAME:
+            return  # ignore other chats
 
-        # Forward message to group with hidden tag
-        sent_msg = await context.bot.send_message(
-            chat_id=GROUP_CHAT_ID,
-            text=f"{text}"
-        )
+        if event.sender_id != BOT_A_ID:
+            return  # only process messages from Bot A
 
-        # Save mapping
-        user_requests[sent_msg.message_id] = user_id
-
-        await update.message.reply_text("✅ Request received, waiting for response...")
-        logger.info(f"Forwarded request from user {user_id} to group.")
+        # Make sure this is a reply to one of our forwarded messages
+        if event.is_reply:
+            replied_id = event.reply_to_msg_id
+            if replied_id in user_requests:
+                user_id = user_requests[replied_id]
+                await client.send_message(user_id, f"{event.raw_text}")
+                logger.info(f"Delivered Bot A reply to user {user_id}")
+                del user_requests[replied_id]
 
     except Exception as e:
-        logger.error(f"Error in handle_user_command: {e}")
-        await update.message.reply_text("⚠️ Something went wrong while sending your request.")
+        logger.error(f"Error handling group message: {e}")
 
+# ================= MAIN =================
+async def main():
+    await client.start()
+    logger.info("Userbot started. Listening for messages...")
+    await client.run_until_disconnected()
 
-async def handle_group_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle messages inside the group, capture Bot A replies."""
-    try:
-        # Only process Bot A messages
-        if update.message.from_user and update.message.from_user.id == BOT_A_ID:
-            reply_text = update.message.text or "<no text>"
-
-            # Make sure this reply is to a tracked request
-            if update.message.reply_to_message:
-                original_id = update.message.reply_to_message.message_id
-                if original_id in user_requests:
-                    user_id = user_requests[original_id]
-
-                    # Send back to user
-                    await context.bot.send_message(chat_id=user_id, text=reply_text)
-                    logger.info(f"Delivered Bot A reply to user {user_id}")
-
-                    # Cleanup mapping
-                    del user_requests[original_id]
-    except Exception as e:
-        logger.error(f"Error in handle_group_message: {e}")
-
-
-async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
-    """Global error handler."""
-    logger.error(msg="Exception while handling update:", exc_info=context.error)
-
-# ===================== MAIN =====================
-def main():
-    """Run the bot."""
-    try:
-        app = Application.builder().token(BOT_B_TOKEN).build()
-
-        # Private chat handlers
-        app.add_handler(CommandHandler("start", start))
-        app.add_handler(MessageHandler(filters.ChatType.PRIVATE & filters.TEXT, handle_user_command))
-
-        # Group message handler
-        app.add_handler(MessageHandler(filters.ChatType.GROUPS & filters.TEXT, handle_group_message))
-
-        # Error handler
-        app.add_error_handler(error_handler)
-
-        logger.info("Bot B is running...")
-        app.run_polling()
-    except Exception as e:
-        logger.critical(f"Bot failed to start: {e}")
-
-# ===================== ENTRY =====================
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
