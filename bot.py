@@ -5,6 +5,11 @@ from telegram.ext import (
     ContextTypes, filters
 )
 
+async def debug(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print(update)
+
+app.add_handler(MessageHandler(filters.ALL, debug))
+
 
 # ==== CONFIG ====
 BOT_A_ID = 8383101634        # Replace with Bot A's user ID
