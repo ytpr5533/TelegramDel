@@ -13,11 +13,11 @@ import logging
 from telethon import TelegramClient, events
 
 # ================= CONFIG =================
-API_ID = 28980184                     # Your Telegram API ID
-API_HASH = "087803ce7bd17d500ea9e223db2af018"  # Your Telegram API Hash
+API_ID =                     # Your Telegram API ID
+API_HASH = ""  # Your Telegram API Hash
 SESSION_NAME = "userbot_session"      # Session file name
-GROUP_USERNAME = "informationtool"    # without t.me/
-BOT_A_ID = 8200107278                 # Bot A's user ID
+GROUP_USERNAME = ""    # without t.me/
+BOT_A_ID =               # Bot A's user ID
 
 # ================= LOGGING =================
 logging.basicConfig(
